@@ -17,8 +17,21 @@ import (
 	"github.com/nicklaw5/helix"
 )
 
+var MEME_FONT_LOCATION = "/assets/fonts/impact.ttf"
+var IMG_HEIGHT = 600
+var IMG_WIDTH = 800
 var FRONT_CAM_SOURCE = "CAM_front"
 var MEME_INPUT_NAME = "INPUT_memeimage"
+
+/*
+	need to load image from base
+	then load font
+	then draw on image
+	pulled from file
+	cant use context to do so
+	need to experiment with that
+
+*/
 
 func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubChannelPointsCustomRewardRedemptionEvent) error {
 	// sceneClient := obsClient.SceneItems
@@ -26,15 +39,13 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 	sourceClient := clients.OBSClient.Sources
 	sceneClient := clients.OBSClient.Scenes
 	sceneItemsClient := clients.OBSClient.SceneItems
-	imgHeight := clients.GGContext.Height()
-	imgWidth := clients.GGContext.Width()
 
 	screenshotResponse, err := sourceClient.GetSourceScreenshot(&sources.GetSourceScreenshotParams{
 		SourceName:              &FRONT_CAM_SOURCE,
 		ImageCompressionQuality: &[]float64{-1}[0],
 		ImageFormat:             &[]string{"png"}[0],
-		ImageHeight:             &[]float64{float64(imgHeight)}[0],
-		ImageWidth:              &[]float64{float64(imgWidth)}[0],
+		// ImageHeight:             &[]float64{float64(IMG_HEIGHT)}[0],
+		// ImageWidth:              &[]float64{float64(IMG_WIDTH)}[0],
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -46,9 +57,11 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 
 	// save image
 	preFileName := fmt.Sprintf("pre%d.png", time.Now().Unix())
+	pwd, _ := os.Getwd()
+	preFileLocation := fmt.Sprintf("%s/generated_memes/%s", pwd, preFileName)
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
 	image, _ := png.Decode(reader)
-	f, _ := os.Create(preFileName)
+	f, _ := os.Create(preFileLocation)
 	_ = png.Encode(f, image)
 	//trying to put this into a relative file path - into generated_memes
 
@@ -95,10 +108,10 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 	inputParams := inputs.
 		NewCreateInputParams().
 		WithSceneName(currentScene.CurrentProgramSceneName).
-		WithInputKind("Image").
+		WithInputKind("image_source").
 		WithInputName(MEME_INPUT_NAME).
 		WithInputSettings(map[string]interface{}{
-			"file": preFileName,
+			"file": postProcessFileName,
 		})
 
 	// Send the input over to OBS
@@ -128,7 +141,8 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 }
 
 func (clients ClientHolder) addText(src string, memeString []string) string {
-	ggClient := clients.GGContext
+	ggClient := generateGGContextWithImage(src)
+	// ggClient.LoadPNG()
 	height := float64(ggClient.Height())
 	width := float64(ggClient.Width())
 	line1 := strings.Trim(memeString[0], " ")
@@ -158,4 +172,27 @@ func (clients ClientHolder) addText(src string, memeString []string) string {
 	postFileLocation := fmt.Sprintf("%s/generated_memes/%s", pwd, postFileName)
 	ggClient.SavePNG(postFileLocation)
 	return postFileLocation
+}
+
+func generateGGContextWithImage(preFileName string) gg.Context {
+
+	pwd, _ := os.Getwd()
+	fontLocation := pwd + MEME_FONT_LOCATION
+
+	preFileLocation := fmt.Sprintf("%s/generated_memes/%s", pwd, preFileName)
+	img, err := gg.LoadImage(preFileLocation)
+	if err != nil {
+		log.Fatal("unable to images")
+		fmt.Println(err)
+		panic(err)
+	}
+	ggContext := gg.NewContextForImage(img)
+
+	if err := ggContext.LoadFontFace(fontLocation, 50); err != nil {
+		log.Fatal("unable to load font")
+		fmt.Println(err)
+		panic(err)
+	}
+
+	return *ggContext
 }

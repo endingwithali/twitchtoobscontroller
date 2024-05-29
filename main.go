@@ -7,13 +7,8 @@ import (
 	"os"
 
 	"github.com/andreykaipov/goobs"
-	"github.com/fogleman/gg"
 	"github.com/joho/godotenv"
 )
-
-var MEME_FONT_LOCATION = "/assets/fonts/impact.ttf"
-var IMG_HEIGHT = 800
-var IMG_WIDTH = 600
 
 /*
 * Setting up listeners and clients for redemptions + OBS / Twitch Connections
@@ -33,21 +28,9 @@ func main() {
 	}
 	defer obsClient.Disconnect()
 
-	ggContext := gg.NewContext(IMG_WIDTH, IMG_HEIGHT)
-	// fontLocation, _ := filepath.Abs(MEME_FONT_LOCATION)
-	pwd, _ := os.Getwd()
-	fontLocation := pwd + MEME_FONT_LOCATION
-	fmt.Println(fontLocation)
-	if err := ggContext.LoadFontFace(fontLocation, 50); err != nil {
-		log.Fatal("unable to load font")
-		fmt.Print(err)
-		panic(err)
-	}
-
 	// client handlers
 	clients := redemptions.ClientHolder{
 		OBSClient: obsClient,
-		GGContext: ggContext,
 	}
 	defer obsClient.Disconnect()
 
@@ -55,6 +38,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// obsClient.Listen(func(event any) {
+	// 	switch e := event.(type) {
+	// 	case *events.SceneItemListReindexed:
+	// 		fmt.Printf("reindexed: %v\n", e.SceneName)
+	// 		for _, item := range e.SceneItems {
+	// 			fmt.Printf("  %+v\n", item)
+	// 		}
+	// 	case *events.SceneItemEnableStateChanged:
+	// 		fmt.Printf("visibility:\n")
+	// 		fmt.Printf("  %+v\n", e)
+	// 	default:
+	// 		fmt.Printf("unhandled: %T\n", event)
+	// 	}
+	// })
+
 	// clients.Process()
 
 	// // this needs to get deployed somewhere, and then have the callback url put below to handle receiving redirects

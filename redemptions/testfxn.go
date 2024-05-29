@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/andreykaipov/goobs/api/requests/inputs"
-	"github.com/andreykaipov/goobs/api/requests/sceneitems"
 	"github.com/andreykaipov/goobs/api/requests/sources"
 )
 
@@ -20,16 +19,14 @@ func (clients ClientHolder) TestFXN() error {
 	inputClient := clients.OBSClient.Inputs
 	sourceClient := clients.OBSClient.Sources
 	sceneClient := clients.OBSClient.Scenes
-	sceneItemsClient := clients.OBSClient.SceneItems
-	imgHeight := clients.GGContext.Height()
-	imgWidth := clients.GGContext.Width()
+	// sceneItemsClient := clients.OBSClient.SceneItems
 
 	screenshotResponse, err := sourceClient.GetSourceScreenshot(&sources.GetSourceScreenshotParams{
 		SourceName:              &FRONT_CAM_SOURCE,
 		ImageCompressionQuality: &[]float64{-1}[0],
 		ImageFormat:             &[]string{"png"}[0],
-		ImageHeight:             &[]float64{float64(imgHeight)}[0],
-		ImageWidth:              &[]float64{float64(imgWidth)}[0],
+		// ImageHeight:             &[]float64{float64(IMG_HEIGHT)}[0],
+		// ImageWidth:              &[]float64{float64(IMG_WIDTH)}[0],
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -41,9 +38,11 @@ func (clients ClientHolder) TestFXN() error {
 
 	// save image
 	preFileName := fmt.Sprintf("pre%d.png", time.Now().Unix())
+	pwd, _ := os.Getwd()
+	preFileLocation := fmt.Sprintf("%s/generated_memes/%s", pwd, preFileName)
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
 	image, _ := png.Decode(reader)
-	f, _ := os.Create(preFileName)
+	f, _ := os.Create(preFileLocation)
 	_ = png.Encode(f, image)
 	//trying to put this into a relative file path - into generated_memes
 
@@ -55,7 +54,7 @@ func (clients ClientHolder) TestFXN() error {
 	}
 
 	postProcessFileName := clients.addText(preFileName, memeStringArr)
-	fmt.Print(postProcessFileName)
+	fmt.Println(postProcessFileName)
 
 	/*
 		1) get screen shot of source
@@ -81,17 +80,14 @@ func (clients ClientHolder) TestFXN() error {
 		log.Fatal(err)
 		return errors.New(err.Error())
 	}
+	fmt.Printf("Current Scene name: %s", currentScene.CurrentProgramSceneName)
 
-	/*
-		use set input settings to select file location
-
-	*/
-	// Compose the new input
+	inputName := fmt.Sprintf("%s_%d", MEME_INPUT_NAME, time.Now().Unix())
 	inputParams := inputs.
 		NewCreateInputParams().
 		WithSceneName(currentScene.CurrentProgramSceneName).
 		WithInputKind("image_source").
-		WithInputName(MEME_INPUT_NAME).
+		WithInputName(inputName).
 		WithInputSettings(map[string]interface{}{
 			"file": postProcessFileName,
 		})
@@ -99,25 +95,19 @@ func (clients ClientHolder) TestFXN() error {
 	// Send the input over to OBS
 	createdInput, err := inputClient.CreateInput(inputParams)
 	if err != nil {
-		panic(err)
+		fmt.Println("CreatePanic")
+		log.Fatal(err)
 	}
 
-	valueTrue := true
-	_, err = sceneItemsClient.CreateSceneItem(&sceneitems.CreateSceneItemParams{
-		SceneItemEnabled: &valueTrue,
-		SceneName:        &currentScene.SceneName,
-		SourceName:       &MEME_INPUT_NAME,
-		SourceUuid:       &createdInput.InputUuid,
-	})
-	time.Sleep(10)
+	fmt.Println("Waiting...")
+	time.Sleep(10 * time.Second)
+	fmt.Println("Deleting Image")
 
-	/*
-		how to display in a scene
-		- get current scene name
-		- create scene item using souce
-		- insert into scene
-		- wait
-		- delete scene item
-	*/
+	removeParams := inputs.NewRemoveInputParams().WithInputName(inputName).WithInputUuid(createdInput.InputUuid)
+	_, err = inputClient.RemoveInput(removeParams)
+	if err != nil {
+		fmt.Println("CreatePanic")
+		log.Fatal(err)
+	}
 	return nil
 }
