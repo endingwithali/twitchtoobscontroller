@@ -23,18 +23,7 @@ var IMG_WIDTH = 800
 var FRONT_CAM_SOURCE = "CAM_front"
 var MEME_INPUT_NAME = "INPUT_memeimage"
 
-/*
-	need to load image from base
-	then load font
-	then draw on image
-	pulled from file
-	cant use context to do so
-	need to experiment with that
-
-*/
-
 func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubChannelPointsCustomRewardRedemptionEvent) error {
-	// sceneClient := obsClient.SceneItems
 	inputClient := clients.OBSClient.Inputs
 	sourceClient := clients.OBSClient.Sources
 	sceneClient := clients.OBSClient.Scenes
@@ -44,8 +33,6 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 		SourceName:              &FRONT_CAM_SOURCE,
 		ImageCompressionQuality: &[]float64{-1}[0],
 		ImageFormat:             &[]string{"png"}[0],
-		// ImageHeight:             &[]float64{float64(IMG_HEIGHT)}[0],
-		// ImageWidth:              &[]float64{float64(IMG_WIDTH)}[0],
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -61,38 +48,27 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 	preFileLocation := fmt.Sprintf("%s/generated_memes/%s", pwd, preFileName)
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
 	image, _ := png.Decode(reader)
+	//puts this into a relative file path - into generated_memes
 	f, _ := os.Create(preFileLocation)
 	_ = png.Encode(f, image)
-	//trying to put this into a relative file path - into generated_memes
 
-	// STRING/STRING
+	// Pulling STRING/STRING from twitch reqard
 	memeStringArr := strings.Split(rewardEvent.UserInput, "/")
 	if len(memeStringArr) != 2 {
 		log.Fatal("String too long")
 		return errors.New("STRING MISFORMATTEED LONG")
 	}
 
+	//For testing without having helix defined
+	// // STRING/STRING
+	// memeStringArr := strings.Split("BEANS A / BEANS B", "/")
+	// if len(memeStringArr) != 2 {
+	// 	log.Fatal("String too long")
+	// 	return errors.New("STRING MISFORMATTEED LONG")
+	// }
+
 	postProcessFileName := clients.addText(preFileName, memeStringArr)
-	fmt.Print(postProcessFileName)
-
-	/*
-		1) get screen shot of source
-			4) execute method
-			5) store variable and check for errors
-		2) pull message from redemption info
-		3) add text to image
-			https://stackoverflow.com/questions/38299930/how-to-add-a-simple-text-label-to-an-image-in-go
-
-
-		4) display image on scene
-		5) sleep(10 sec)
-		6) hide image from scene
-		7) save image to local file - done in 	ggClient.SavePNG(postFileName)
-		8) return
-
-	*/
-
-	// currentSceneInfo, err := sceneClient.GetCurrentProgramScene(&scenes.GetCurrentProgramSceneParams{})
+	log.Print(postProcessFileName)
 
 	currentScene, err := sceneClient.GetCurrentProgramScene()
 	if err != nil {
@@ -100,16 +76,15 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 		return errors.New(err.Error())
 	}
 
-	/*
-		use set input settings to select file location
+	// log.Printf("Current Scene name: %s", currentScene.CurrentProgramSceneName)
 
-	*/
 	// Compose the new input
+	inputName := fmt.Sprintf("%s_%d", MEME_INPUT_NAME, time.Now().Unix())
 	inputParams := inputs.
 		NewCreateInputParams().
 		WithSceneName(currentScene.CurrentProgramSceneName).
 		WithInputKind("image_source").
-		WithInputName(MEME_INPUT_NAME).
+		WithInputName(inputName).
 		WithInputSettings(map[string]interface{}{
 			"file": postProcessFileName,
 		})
@@ -120,23 +95,48 @@ func (clients ClientHolder) memeGenerator_Redemption(rewardEvent helix.EventSubC
 		panic(err)
 	}
 
-	valueTrue := true
-	_, err = sceneItemsClient.CreateSceneItem(&sceneitems.CreateSceneItemParams{
-		SceneItemEnabled: &valueTrue,
-		SceneName:        &currentScene.SceneName,
-		SourceName:       &MEME_INPUT_NAME,
-		SourceUuid:       &createdInput.InputUuid,
+	getSceneItemsSourceResponse, err := sceneItemsClient.GetSceneItemTransform(&sceneitems.GetSceneItemTransformParams{
+		SceneItemId: &createdInput.SceneItemId,
+		SceneName:   &currentScene.CurrentProgramSceneName,
+		SceneUuid:   &currentScene.CurrentProgramSceneUuid,
 	})
-	time.Sleep(10)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	/*
-		how to display in a scene
-		- get current scene name
-		- create scene item using souce
-		- insert into scene
-		- wait
-		- delete scene item
-	*/
+	transformParams := getSceneItemsSourceResponse.SceneItemTransform
+	log.Println(transformParams)
+
+	// we can set the X and Y position to center the image to be the height and width because the image is a screenshot that is the proper height and width of the scene.
+	transformParams.PositionX = transformParams.Width / 2
+	transformParams.PositionY = transformParams.Height / 2
+	transformParams.Alignment = 0
+	transformParams.ScaleX = 0.35
+	transformParams.ScaleY = 0.35
+	transformParams.BoundsWidth = 100
+	transformParams.BoundsHeight = 100
+
+	log.Println(transformParams)
+
+	_, err = sceneItemsClient.SetSceneItemTransform(&sceneitems.SetSceneItemTransformParams{
+		SceneItemId:        &createdInput.SceneItemId,
+		SceneItemTransform: transformParams,
+		SceneName:          &currentScene.CurrentProgramSceneName,
+		SceneUuid:          &currentScene.CurrentProgramSceneUuid,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Waiting...")
+	time.Sleep(10 * time.Second)
+	log.Println("Deleting Image")
+
+	removeParams := inputs.NewRemoveInputParams().WithInputName(inputName).WithInputUuid(createdInput.InputUuid)
+	_, err = inputClient.RemoveInput(removeParams)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return nil
 }
 

@@ -16,7 +16,6 @@ import (
 )
 
 func (clients ClientHolder) TestFXN() error {
-	// sceneClient := obsClient.SceneItems
 	inputClient := clients.OBSClient.Inputs
 	sourceClient := clients.OBSClient.Sources
 	sceneClient := clients.OBSClient.Scenes
@@ -43,7 +42,7 @@ func (clients ClientHolder) TestFXN() error {
 	image, _ := png.Decode(reader)
 	f, _ := os.Create(preFileLocation)
 	_ = png.Encode(f, image)
-	//trying to put this into a relative file path - into generated_memes
+	//put this into a relative file path - into generated_memes
 
 	// STRING/STRING
 	memeStringArr := strings.Split("BEANS A / BEANS B", "/")
@@ -60,7 +59,6 @@ func (clients ClientHolder) TestFXN() error {
 		log.Fatal(err)
 		return errors.New(err.Error())
 	}
-	// fmt.Printf("Current Scene name: %s", currentScene.CurrentProgramSceneName)
 
 	inputName := fmt.Sprintf("%s_%d", MEME_INPUT_NAME, time.Now().Unix())
 	inputParams := inputs.
@@ -86,22 +84,19 @@ func (clients ClientHolder) TestFXN() error {
 	})
 	if err != nil {
 		log.Fatal(err)
-		// return errors.New(err.Error())
 	}
 
 	transformParams := getSceneItemsSourceResponse.SceneItemTransform
 	log.Println(transformParams)
+
+	// we can set the X and Y position to center the image to be the height and width because the image is a screenshot that is the proper height and width of the scene.
+	transformParams.PositionX = transformParams.Width / 2
+	transformParams.PositionY = transformParams.Height / 2
 	transformParams.Alignment = 0
 	transformParams.ScaleX = 0.35
 	transformParams.ScaleY = 0.35
 	transformParams.BoundsWidth = 100
 	transformParams.BoundsHeight = 100
-	transformParams.BoundsType = "OBS_BOUNDS_NONE"
-	transformParams.BoundsAlignment = 0
-	// assuming a default resolution 1920x1080
-	//the right way to do this is to programmatically get the height and width of the current scene and do the divison to get the accurate x and y location for any obs scene. however for this i am hard coding it in
-	transformParams.PositionX = 1920.0 / 2
-	transformParams.PositionY = 1080.0 / 2
 
 	log.Println(transformParams)
 
@@ -113,7 +108,6 @@ func (clients ClientHolder) TestFXN() error {
 	})
 	if err != nil {
 		log.Fatal(err)
-		// return errors.New(err.Error())
 	}
 
 	log.Println("Waiting...")
@@ -123,7 +117,6 @@ func (clients ClientHolder) TestFXN() error {
 	removeParams := inputs.NewRemoveInputParams().WithInputName(inputName).WithInputUuid(createdInput.InputUuid)
 	_, err = inputClient.RemoveInput(removeParams)
 	if err != nil {
-		fmt.Println("CreatePanic")
 		log.Fatal(err)
 	}
 	return nil
