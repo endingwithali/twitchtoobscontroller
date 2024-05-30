@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/andreykaipov/goobs/api/requests/inputs"
+	"github.com/andreykaipov/goobs/api/requests/sceneitems"
 	"github.com/andreykaipov/goobs/api/requests/sources"
 )
 
@@ -19,14 +20,12 @@ func (clients ClientHolder) TestFXN() error {
 	inputClient := clients.OBSClient.Inputs
 	sourceClient := clients.OBSClient.Sources
 	sceneClient := clients.OBSClient.Scenes
-	// sceneItemsClient := clients.OBSClient.SceneItems
+	sceneItemsClient := clients.OBSClient.SceneItems
 
 	screenshotResponse, err := sourceClient.GetSourceScreenshot(&sources.GetSourceScreenshotParams{
 		SourceName:              &FRONT_CAM_SOURCE,
 		ImageCompressionQuality: &[]float64{-1}[0],
 		ImageFormat:             &[]string{"png"}[0],
-		// ImageHeight:             &[]float64{float64(IMG_HEIGHT)}[0],
-		// ImageWidth:              &[]float64{float64(IMG_WIDTH)}[0],
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -56,31 +55,12 @@ func (clients ClientHolder) TestFXN() error {
 	postProcessFileName := clients.addText(preFileName, memeStringArr)
 	fmt.Println(postProcessFileName)
 
-	/*
-		1) get screen shot of source
-			4) execute method
-			5) store variable and check for errors
-		2) pull message from redemption info
-		3) add text to image
-			https://stackoverflow.com/questions/38299930/how-to-add-a-simple-text-label-to-an-image-in-go
-
-
-		4) display image on scene
-		5) sleep(10 sec)
-		6) hide image from scene
-		7) save image to local file - done in 	ggClient.SavePNG(postFileName)
-		8) return
-
-	*/
-
-	// currentSceneInfo, err := sceneClient.GetCurrentProgramScene(&scenes.GetCurrentProgramSceneParams{})
-
 	currentScene, err := sceneClient.GetCurrentProgramScene()
 	if err != nil {
 		log.Fatal(err)
 		return errors.New(err.Error())
 	}
-	fmt.Printf("Current Scene name: %s", currentScene.CurrentProgramSceneName)
+	// fmt.Printf("Current Scene name: %s", currentScene.CurrentProgramSceneName)
 
 	inputName := fmt.Sprintf("%s_%d", MEME_INPUT_NAME, time.Now().Unix())
 	inputParams := inputs.
@@ -99,9 +79,46 @@ func (clients ClientHolder) TestFXN() error {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Waiting...")
+	getSceneItemsSourceResponse, err := sceneItemsClient.GetSceneItemTransform(&sceneitems.GetSceneItemTransformParams{
+		SceneItemId: &createdInput.SceneItemId,
+		SceneName:   &currentScene.CurrentProgramSceneName,
+		SceneUuid:   &currentScene.CurrentProgramSceneUuid,
+	})
+	if err != nil {
+		log.Fatal(err)
+		// return errors.New(err.Error())
+	}
+
+	transformParams := getSceneItemsSourceResponse.SceneItemTransform
+	log.Println(transformParams)
+	transformParams.Alignment = 0
+	transformParams.ScaleX = 0.35
+	transformParams.ScaleY = 0.35
+	transformParams.BoundsWidth = 100
+	transformParams.BoundsHeight = 100
+	transformParams.BoundsType = "OBS_BOUNDS_NONE"
+	transformParams.BoundsAlignment = 0
+	// assuming a default resolution 1920x1080
+	//the right way to do this is to programmatically get the height and width of the current scene and do the divison to get the accurate x and y location for any obs scene. however for this i am hard coding it in
+	transformParams.PositionX = 1920.0 / 2
+	transformParams.PositionY = 1080.0 / 2
+
+	log.Println(transformParams)
+
+	_, err = sceneItemsClient.SetSceneItemTransform(&sceneitems.SetSceneItemTransformParams{
+		SceneItemId:        &createdInput.SceneItemId,
+		SceneItemTransform: transformParams,
+		SceneName:          &currentScene.CurrentProgramSceneName,
+		SceneUuid:          &currentScene.CurrentProgramSceneUuid,
+	})
+	if err != nil {
+		log.Fatal(err)
+		// return errors.New(err.Error())
+	}
+
+	log.Println("Waiting...")
 	time.Sleep(10 * time.Second)
-	fmt.Println("Deleting Image")
+	log.Println("Deleting Image")
 
 	removeParams := inputs.NewRemoveInputParams().WithInputName(inputName).WithInputUuid(createdInput.InputUuid)
 	_, err = inputClient.RemoveInput(removeParams)

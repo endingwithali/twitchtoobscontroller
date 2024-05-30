@@ -188,7 +188,7 @@ func generateGGContextWithImage(preFileName string) gg.Context {
 	}
 	ggContext := gg.NewContextForImage(img)
 
-	if err := ggContext.LoadFontFace(fontLocation, 50); err != nil {
+	if err := ggContext.LoadFontFace(fontLocation, 100); err != nil {
 		log.Fatal("unable to load font")
 		fmt.Println(err)
 		panic(err)
